@@ -21,3 +21,5 @@ python main.py -t UVM -i ./input/UVM.list -m clustering
 ## Data
 The datasets used in this study are available at: **https://github.com/haiyang1986/Subtype-GAN**
 
+## Note
+You can choose whether to conduct weakly paired datasets training in the main.py. Additionally, you can set the missing rate for weakly paired datasets in the train.py.
