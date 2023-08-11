@@ -197,8 +197,8 @@ def train_epoch_extension(data_list, adj_list, model_dict, optim_dict,k,keep,ind
            
             total_ccloss=ci_loss+gi_loss
             total_ccloss.backward()             
-            optim_dict["C{:}".format(i+1)].step()
-            loss_dict["C{:}".format(i+1)] = ci_loss.detach().cpu().numpy().item()
+            optim_dict["G{:}".format(i+1)].step()
+            loss_dict["G{:}".format(i+1)] = ci_loss.detach().cpu().numpy().item()
         
 
     
