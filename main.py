@@ -74,7 +74,7 @@ def main(argv=sys.argv):
       
                 mean_emb[choice]=labels  
                 X = mean_emb.loc[:, [choice]] 
-                out_file = './analysis/results/' + cancer_type + '.SubtypeNew.'+ choice
+                out_file = './analysis/results/' + cancer_type + '.dcgcn'
                 X.to_csv(out_file, header=True, index=True, sep='\t')
 
             for method, labels in labels_dict.items():
