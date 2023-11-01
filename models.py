@@ -72,23 +72,6 @@ class decoder_D(nn.Module):
         out = self.relu(out)
         return out 
 
-class MLP_D(nn.Module):
-    def __init__(self, in_dim,hid_dim, cluster_dim):
-        super(MLP_D, self).__init__()
-        self.fc1 = nn.Linear(in_dim, in_dim)
-        self.fc2 = nn.Linear(in_dim, in_dim)
-        self.softmax= nn.Softmax()
-        self.relu = nn.ReLU()
-
-
-    def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
-        out = self.softmax(out)
-        return out 
-
-
 
 
 def init_model_dict(num_view, dim_list, dim_he_list,num_class, gcn_dopout=0.5):
