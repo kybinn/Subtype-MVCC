@@ -35,7 +35,8 @@ def prepare_trte_data(file_input,cancer_type):
     return data_tensor_list,l
 
 
-def gen_trte_adj_mat(data_tr_list,num_class):
+# if #clusters is unknown, using 6 as a crude estimate for the number of clusters observed in cancer datasets 
+def gen_trte_adj_mat(data_tr_list,num_class=6):
     adj_metric = "cosine" # cosine distance
     adj_train_list = []
     for i in range(len(data_tr_list)): 
@@ -61,10 +62,11 @@ def train_epoch(data_list, adj_list, model_dict, optim_dict,k,pre_flag):
         model_dict[m].train()  
     num_view = len(data_list)
 
-    
+    # compute dual contrast loss and update the parameters of GCNs
+    # set flag is is beneficial for ablation experiments, default:True
     if pre_flag is True:
-        ci_loss = 0     
-        gi_loss = 0     
+        ci_loss = 0     # inter-view contrastive loss
+        gi_loss = 0     # intra-view contrastive loss 
         for i in range(num_view):
             optim_dict["G{:}".format(i+1)].zero_grad()  
             embedding_list.append(model_dict["E{:}".format(i+1)](data_list[i],adj_list[i]))
@@ -75,28 +77,26 @@ def train_epoch(data_list, adj_list, model_dict, optim_dict,k,pre_flag):
         for i in range(num_view):
             ci_loss= criterion(embedding_list[i], torch.nn.Parameter(mean_clu, requires_grad=False)) 
             gi_loss=knbrsloss(embedding_list[i], k)
-            total_ccloss=ci_loss+gi_loss
+            total_ccloss=ci_loss+gi_loss 
             total_ccloss.backward()             
-            
             optim_dict["G{:}".format(i+1)].step()
-            loss_dict["G{:}".format(i+1)] = gi_loss.detach().cpu().numpy().item()
-        
 
-        
-        
+            loss_dict["G{:}".format(i+1)] = gi_loss.detach().cpu().numpy().item() # Just to visualize the gi_loss in experiments 
+      
+    # For each view, compute the decoder reconstruction loss to update the parameters of GCN and decoder
     if num_view >= 2:
         m_loss = 0
+        # compute the embeddings of each omics again, because the parameters of GCNs has been changed
         for i in range(num_view):
             optim_dict["M{:}".format(i+1)].zero_grad()
             embedding_list[i]=model_dict["E{:}".format(i+1)](data_list[i],adj_list[i])
         
+        # compute the weighted embeddings : mean_emb
         stack_tensor_list =torch.stack(embedding_list)
         mean_emb = torch.mean(stack_tensor_list,dim=0) 
-       
-        
-        
+
+        # cumpute the decoder loss of each view : m_loss, then update the parameters of GCNs and decoders in optim_dic[M1]
         for i in range(num_view):
-            
             output_list2.append(model_dict["M{:}".format(i+1)](torch.nn.Parameter(mean_emb, requires_grad=False)))
             m_loss = criterion(output_list2[i], data_list[i])
             m_loss.backward(retain_graph=True)
@@ -106,30 +106,32 @@ def train_epoch(data_list, adj_list, model_dict, optim_dict,k,pre_flag):
     return loss_dict,embedding_list,mean_emb
     
        
-def train_test(file_input,data_folder, view_list, num_class,lr_e, lr_pre,pre_epoch):
+def train_test(file_input,data_folder, view_list, num_class,lr_e,total_epochs):
     num_view = len(view_list)           
-    dim_he_list = [300,200,100]         
+    dim_he_list = [300,200,100]  # the output dimensions of 3 GCN-layer       
     l=[]
     ############## prepare_trte_data ###################
     data_tr_list,l = prepare_trte_data(file_input,data_folder) 
     
 
     ############## gen_trte_adj_mat ####################
-    adj_tr_list = gen_trte_adj_mat(data_tr_list,num_class)
-    k=int(data_tr_list[0].shape[0]/num_class+1)  
+    adj_tr_list = gen_trte_adj_mat(data_tr_list,num_class) 
+    k=int(data_tr_list[0].shape[0]/num_class+1)  # this k is used for Intra-view Comparison Module 
 
-    dim_list = [x.shape[1] for x in data_tr_list] 
+    dim_list = [x.shape[1] for x in data_tr_list]  # the dimensions of each omics
 
 
     ############## init_model_dict ####################
     model_dict = init_model_dict(num_view, dim_list, dim_he_list,num_class)
+    #  model_dict["E1"]: the GCN encoder of omic 1 
+    #  model_dict["M1"]: the MLP decoder of omic 1 
     
     
     embedding_list=[] 
     loss_dict={} 
     mean_emb=[]  
     loss_list_dict={} 
-    optim_dict = init_optim(num_view, model_dict, lr_e)
+    
     
     for m in model_dict:
         if cuda:
@@ -142,13 +144,13 @@ def train_test(file_input,data_folder, view_list, num_class,lr_e, lr_pre,pre_epo
     print("\ntrain ...\n")
     loss_list_dict={}
     
-    optim_dict1 = init_optim(num_view, model_dict, lr_pre) 
-    for epoch in range(pre_epoch+1): 
+    optim_dict1 = init_optim(num_view, model_dict, lr_e) 
+    for epoch in range(total_epochs+1): 
         loss_dict,embedding_list,mean_emb=train_epoch(data_tr_list, adj_tr_list, model_dict, optim_dict1,k,True)
         for key in loss_dict:
             loss_list_dict.setdefault(key, []).append(loss_dict[key]) 
             
-        if(epoch==pre_epoch):
+        if(epoch==total_epochs):
             print("Epoch {}: loss_dict = {}".format(epoch, loss_dict))
 
     for key in loss_list_dict:
@@ -225,7 +227,7 @@ def train_epoch_extension(data_list, adj_list, model_dict, optim_dict,k,keep,ind
     return loss_dict,embedding_list,mean_emb
     
 
-def train_test_extension(file_input,data_folder, view_list, num_class,lr_e, lr_pre,pre_epoch):
+def train_test_extension(file_input,data_folder, view_list, num_class,lr_e,total_epochs):
     num_view = len(view_list)          
     dim_he_list = [300,200,100]       
     l=[]
@@ -235,24 +237,37 @@ def train_test_extension(file_input,data_folder, view_list, num_class,lr_e, lr_p
     
 
     lost_lst =[None]*array_length
-    num_zeros = int(array_length * 0.9) 
+    num_zeros = int(array_length * 0.9)     
+    # 0.9 represents the proportion of retained samples, i.e. the total missing rate is 0.1
+    
     num_ones = int(array_length * 0.03)
     num_twos = int(array_length * 0.03)
     num_threes = array_length-num_ones-num_zeros-num_twos
-
+    # Number of samples under different missing situations 
+    # i.e. num_ones denotes the #samples, which loss any one omics 
 
     lost_lst[:num_zeros-1]=[0]*num_zeros
     lost_lst[num_zeros:num_zeros+num_ones-1]=[1]*num_ones
     lost_lst[num_zeros+num_ones:num_zeros+num_ones+num_twos-1]=[2]*num_twos
     lost_lst[num_zeros+num_ones+num_twos:]=[3]*num_threes
-    
+    # lost_lst is an array of tags
+    # i.e. lost_lst[i] represents the number of missing omics of  sample i
+
     random.shuffle(lost_lst)
+    # randomly shuffle this tag array 
+
     keep_list = [4 - x for x in lost_lst]
+    # keep_list is an array of tags
+    # i.e. keep_list[i] represents the number of retained omics of sample i
+
     index_list = [[1] * array_length for _ in range(num_view)] 
+    # a indicator matrix, index_list[j][i]=0 represents sample i missing omics j
+    
     for i in range(array_length):
         de_num = lost_lst[i] 
         if de_num!=0:
             delete_view_list=random.sample(range(num_view),de_num)
+            # based on lost_lst[i], randomly specify which views are missing and specify their values as 0
             for j in delete_view_list:
                 data_tr_list[j][i]=0   
                 index_list[j][i]=0     
@@ -273,7 +288,7 @@ def train_test_extension(file_input,data_folder, view_list, num_class,lr_e, lr_p
     loss_dict={} 
     mean_emb=[]  
     loss_list_dict={} 
-    optim_dict = init_optim(num_view, model_dict, lr_e)
+    
     
     ################ GPU ############################
     for m in model_dict:
@@ -289,13 +304,13 @@ def train_test_extension(file_input,data_folder, view_list, num_class,lr_e, lr_p
     print("\ntrain ...\n")
     loss_list_dict={}
 
-    optim_dict1 = init_optim(num_view, model_dict, lr_pre) 
-    for epoch in range(pre_epoch+1):
+    optim_dict1 = init_optim(num_view, model_dict, lr_e) 
+    for epoch in range(total_epochs+1):
         loss_dict,embedding_list,mean_emb=train_epoch_extension(data_tr_list, adj_tr_list, model_dict, optim_dict1,k,keep_list,index_list,True)
         for key in loss_dict:
             loss_list_dict.setdefault(key, []).append(loss_dict[key]) 
             
-        if(epoch==pre_epoch):
+        if(epoch==total_epochs):
             print("Epoch {}: loss_dict = {}".format(epoch, loss_dict))
 
     for key in loss_list_dict:
