@@ -17,7 +17,7 @@ from sklearn.cluster import KMeans, SpectralClustering
 
 def main(argv=sys.argv):
     
-    parser = argparse.ArgumentParser(description='SubtypeGAN v1.0')
+    parser = argparse.ArgumentParser(description='SubtypeDCGCN v1.0')
     parser.add_argument("-i", dest='file_input', default="./input/input.list",
                         help="file input")
     parser.add_argument("-m", dest='run_mode', default="feature", help= "run_mode: feature, cluster")
@@ -28,8 +28,8 @@ def main(argv=sys.argv):
     view_list = [1,2,3,4]
     
     num_epoch =600 
-    lr_e_pretrain = 1e-4
-    lr_e = 5e-4
+    lr_e = 1e-4
+    #lr_e = 5e-4
     
     time_start = time.time()
     args = parser.parse_args()
@@ -54,8 +54,8 @@ def main(argv=sys.argv):
     # python main.py -t BLCA -i ./input/BLCA.list -m training
     # python main.py -t UVM -i ./input/UVM.list -m training
     if args.run_mode == 'training':
-        mean_emb,index=train_test(args.file_input,cancer_type, view_list, args.cluster_num,lr_e,lr_e_pretrain,num_epoch)   
-        # mean_emb,index=train_test_extension(args.file_input,cancer_type, view_list, args.cluster_num,lr_e,lr_e_pretrain,num_epoch)              
+        mean_emb,index=train_test(args.file_input,cancer_type, view_list, args.cluster_num,lr_e,num_epoch)   
+        # mean_emb,index=train_test_extension(args.file_input,cancer_type, view_list, args.cluster_num,lr_e,num_epoch)              
         
         fea = pd.DataFrame(data=mean_emb.detach().cpu().numpy(), index=index, columns=map(lambda x: 'v' + str(x), range(mean_emb.shape[1])))
         fea.to_csv(fea_tmp_file, header=True, index=True, sep='\t')
