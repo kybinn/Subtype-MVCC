@@ -23,3 +23,6 @@ The datasets used in this study are available at: **https://github.com/haiyang19
 
 ## Note
 You can choose whether to conduct weakly paired datasets training in the main.py. Additionally, you can set the missing rate for weakly paired datasets in the train.py.
+
+## Update
+In the latest update, we added many comments to aid in reading. 
