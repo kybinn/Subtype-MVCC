@@ -299,7 +299,7 @@ def train_test_extension(file_input,data_folder, view_list, num_class,lr_e,total
             data_tr_list[m]=data_tr_list[m].cuda()
             adj_tr_list[m]=adj_tr_list[m].cuda()
    
-    ############## Pretrain #########################
+    ############## train #########################
    
     print("\ntrain ...\n")
     loss_list_dict={}
